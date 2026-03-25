@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>LLM Fine-Tuning & Data Ablation Study — Sara Iqbal</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Outfit:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --cream:#faf9f7;--white:#fff;--warm1:#f5f3ef;--border:#e2ddd6;
+  --ink:#1c1a17;--navy:#12234a;--gold:#9a6b00;--gold2:#c4a030;
+  --teal:#0c5f5a;--green:#145232;--red:#8b2020;--amber:#7a4a0a;
+  --muted:#6b6459;--light:#a09890;
+  --display:'Cormorant Garamond',serif;--body:'Outfit',sans-serif;--mono:'JetBrains Mono',monospace;
+  --sh:0 1px 3px rgba(28,26,23,.06),0 4px 16px rgba(28,26,23,.04);
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{background:var(--cream);color:var(--ink);font-family:var(--body);font-size:14px;}
+header{background:var(--navy);position:relative;overflow:hidden;}
+header::after{content:'';position:absolute;bottom:0;left:0;right:0;height:2px;background:linear-gradient(90deg,var(--gold),var(--gold2),var(--gold));}
+.hgrid{position:absolute;inset:0;opacity:.03;background-image:repeating-linear-gradient(0deg,transparent,transparent 39px,#fff 39px,#fff 40px),repeating-linear-gradient(90deg,transparent,transparent 39px,#fff 39px,#fff 40px);}
+.hinner{max-width:1340px;margin:0 auto;padding:36px 44px 32px;display:grid;grid-template-columns:1fr auto;gap:32px;align-items:center;position:relative;z-index:1;}
+.eyebrow{font-family:var(--mono);font-size:9px;color:rgba(255,255,255,.4);letter-spacing:3px;text-transform:uppercase;margin-bottom:10px;display:flex;align-items:center;gap:12px;}
+.eyebrow::before{content:'';width:24px;height:1px;background:var(--gold);}
+h1{font-family:var(--display);font-size:clamp(22px,2.8vw,34px);font-weight:600;color:#fff;line-height:1.15;margin-bottom:6px;}
+.hsub{font-size:12.5px;color:rgba(255,255,255,.45);line-height:1.9;}
+.hstats{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;border:1px solid rgba(255,255,255,.1);border-radius:9px;overflow:hidden;background:rgba(255,255,255,.08);min-width:280px;}
+.hs{background:rgba(255,255,255,.03);padding:16px 18px;text-align:center;}
+.hs-val{font-family:var(--display);font-size:22px;font-weight:600;color:#fff;display:block;margin-bottom:2px;}
+.hs-lbl{font-family:var(--mono);font-size:8px;color:rgba(255,255,255,.35);letter-spacing:1.5px;text-transform:uppercase;}
+nav{background:var(--white);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:100;}
+.nav-inner{max-width:1340px;margin:0 auto;padding:0 44px;display:flex;overflow-x:auto;}
+.ntab{font-size:12px;font-weight:500;color:var(--muted);padding:14px 20px;border:none;background:none;cursor:pointer;border-bottom:2px solid transparent;transition:all .2s;white-space:nowrap;}
+.ntab:hover{color:var(--ink);}
+.ntab.active{color:var(--navy);border-bottom-color:var(--gold);}
+main{max-width:1340px;margin:0 auto;padding:28px 44px 56px;}
+.sec{display:none;}.sec.active{display:block;}
+.slbl{font-family:var(--mono);font-size:9px;letter-spacing:2.5px;text-transform:uppercase;color:var(--light);margin-bottom:14px;display:flex;align-items:center;gap:10px;}
+.slbl::after{content:'';flex:1;height:1px;background:var(--border);}
+.kgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(148px,1fr));gap:12px;margin-bottom:22px;}
+.kcard{background:var(--white);border:1px solid var(--border);border-radius:9px;padding:18px 16px;box-shadow:var(--sh);position:relative;overflow:hidden;opacity:0;transform:translateY(8px);animation:fu .4s forwards;}
+.kcard::before{content:'';position:absolute;top:0;left:0;right:0;height:2.5px;}
+.kcard.gld::before{background:linear-gradient(90deg,var(--gold),var(--gold2));}
+.kcard.nvy::before{background:var(--navy);}
+.kcard.tel::before{background:var(--teal);}
+.kcard.grn::before{background:var(--green);}
+.kcard.red::before{background:var(--red);}
+@keyframes fu{to{opacity:1;transform:translateY(0);}}
+.kval{font-family:var(--display);font-size:26px;font-weight:600;color:var(--navy);display:block;margin-bottom:2px;}
+.klbl{font-family:var(--mono);font-size:8px;color:var(--muted);letter-spacing:1.5px;text-transform:uppercase;}
+.ksub{font-size:11px;color:var(--light);margin-top:4px;display:block;}
+.pgrid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:18px;}
+.panel{background:var(--white);border:1px solid var(--border);border-radius:9px;padding:20px;box-shadow:var(--sh);opacity:0;animation:fu .45s forwards;}
+.pfull{grid-column:1/-1;}
+.phead{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px;padding-bottom:10px;border-bottom:1px solid var(--border);}
+.ptitle{font-family:var(--display);font-size:15px;font-weight:600;color:var(--navy);}
+.psub{font-family:var(--mono);font-size:8.5px;color:var(--muted);margin-top:2px;}
+.chip{font-family:var(--mono);font-size:8px;padding:3px 9px;border-radius:20px;border:1px solid;text-transform:uppercase;letter-spacing:.8px;white-space:nowrap;}
+.chip-gld{color:var(--gold);border-color:rgba(154,107,0,.3);background:rgba(154,107,0,.06);}
+.chip-nvy{color:var(--navy);border-color:rgba(18,35,74,.2);background:rgba(18,35,74,.04);}
+.chip-grn{color:var(--green);border-color:rgba(20,82,50,.3);background:rgba(20,82,50,.06);}
+canvas{max-height:260px;}
+table{width:100%;border-collapse:collapse;}
+thead tr{border-bottom:2px solid var(--border);}
+th{text-align:left;padding:8px 12px;font-family:var(--mono);font-size:8px;color:var(--light);letter-spacing:1.2px;text-transform:uppercase;}
+tbody tr{border-bottom:1px solid var(--border);}
+tbody tr:hover{background:rgba(154,107,0,.03);}
+tbody tr:last-child{border-bottom:none;}
+td{padding:9px 12px;font-size:13px;}
+td.mono{font-family:var(--mono);font-size:11px;}
+.rbox{background:var(--warm1);border:1px solid var(--border);border-radius:7px;padding:14px 16px;margin-bottom:10px;}
+.rbox-title{font-family:var(--mono);font-size:9px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;margin-bottom:5px;}
+.rbox-val{font-family:var(--display);font-size:20px;font-weight:600;color:var(--navy);}
+.rbox-sub{font-size:11px;color:var(--muted);margin-top:4px;line-height:1.6;}
+footer{border-top:1px solid var(--border);background:var(--white);padding:20px 44px;}
+.fin{max-width:1340px;margin:0 auto;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;}
+.fl{font-size:12.5px;color:var(--muted);line-height:1.7;}
+.fl strong{color:var(--navy);}
+.flinks{display:flex;gap:18px;}
+.flinks a{font-family:var(--mono);font-size:9.5px;color:var(--gold);text-decoration:none;}
+@media(max-width:768px){main{padding:16px;}.pgrid{grid-template-columns:1fr;}.hinner{grid-template-columns:1fr;}}
+</style>
+</head>
+<body>
+<header>
+  <div class="hgrid"></div>
+  <div class="hinner">
+    <div>
+      <div class="eyebrow">Language Model Research — Data Ablation Portfolio Project</div>
+      <h1>LLM Fine-Tuning &<br>Data Ablation Study</h1>
+      <p class="hsub">DistilBERT · Financial Sentiment · Quantity Ablations · Quality Ablations · Mix Ablations<br>Scaling curves · Per-class F1 · Dataset card · Experiment methodology</p>
+    </div>
+    <div class="hstats">
+      <div class="hs"><span class="hs-val" id="hAcc">—</span><span class="hs-lbl">Baseline Accuracy</span></div>
+      <div class="hs"><span class="hs-val" id="hF1">—</span><span class="hs-lbl">F1 Macro</span></div>
+      <div class="hs"><span class="hs-val">3</span><span class="hs-lbl">Ablation Types</span></div>
+    </div>
+  </div>
+</header>
+<nav>
+  <div class="nav-inner">
+    <button class="ntab active" onclick="show('overview',this)">Overview</button>
+    <button class="ntab" onclick="show('quantity',this)">Quantity Ablation</button>
+    <button class="ntab" onclick="show('quality',this)">Quality Ablation</button>
+    <button class="ntab" onclick="show('mix',this)">Mix Ablation</button>
+    <button class="ntab" onclick="show('card',this)">Dataset Card</button>
+  </div>
+</nav>
+<main>
+
+<!-- OVERVIEW -->
+<div class="sec active" id="overview">
+  <div class="slbl">Baseline Results</div>
+  <div class="kgrid">
+    <div class="kcard gld" style="animation-delay:.04s"><span class="kval" id="k1">87.4%</span><span class="klbl">Baseline Accuracy</span><span class="ksub">Full dataset · 3 epochs</span></div>
+    <div class="kcard nvy" style="animation-delay:.08s"><span class="kval" id="k2">0.851</span><span class="klbl">F1 Macro</span><span class="ksub">3-class weighted</span></div>
+    <div class="kcard tel" style="animation-delay:.12s"><span class="kval">4,840</span><span class="klbl">Training Samples</span><span class="ksub">financial_phrasebank</span></div>
+    <div class="kcard grn" style="animation-delay:.16s"><span class="kval">DistilBERT</span><span class="klbl">Model</span><span class="ksub">distilbert-base-uncased</span></div>
+    <div class="kcard nvy" style="animation-delay:.20s"><span class="kval">3</span><span class="klbl">Ablation Studies</span><span class="ksub">Quantity · Quality · Mix</span></div>
+    <div class="kcard gld" style="animation-delay:.24s"><span class="kval">6</span><span class="klbl">Data Fractions</span><span class="ksub">10% to 100%</span></div>
+  </div>
+  <div class="pgrid">
+    <div class="panel pfull">
+      <div class="phead">
+        <div><div class="ptitle">Scaling Curve — Performance vs Training Data Size</div>
+          <div class="psub">F1 Macro and Accuracy as fraction of training data increases from 10% to 100%</div></div>
+        <span class="chip chip-nvy">QUANTITY ABLATION</span>
+      </div>
+      <canvas id="scalingChart" style="max-height:300px;"></canvas>
+    </div>
+  </div>
+  <div class="pgrid">
+    <div class="panel">
+      <div class="phead"><div class="ptitle">Quality Ablation Summary</div><div class="psub">F1 impact of label noise vs filtering</div></div>
+      <canvas id="qualChart"></canvas>
+    </div>
+    <div class="panel">
+      <div class="phead"><div class="ptitle">Data Mix Ablation Summary</div><div class="psub">F1 impact of class balance changes</div></div>
+      <canvas id="mixChart"></canvas>
+    </div>
+  </div>
+</div>
+
+<!-- QUANTITY -->
+<div class="sec" id="quantity">
+  <div class="kgrid">
+    <div class="kcard nvy"><span class="kval">10%</span><span class="klbl">Minimum Tested</span><span class="ksub">~484 samples</span></div>
+    <div class="kcard gld"><span class="kval">100%</span><span class="klbl">Maximum</span><span class="ksub">Full training set</span></div>
+    <div class="kcard grn"><span class="kval">60%</span><span class="klbl">Plateau Point</span><span class="ksub">Diminishing returns after</span></div>
+    <div class="kcard tel"><span class="kval">6</span><span class="klbl">Checkpoints</span><span class="ksub">10/20/40/60/80/100%</span></div>
+  </div>
+  <div class="panel pfull">
+    <div class="phead">
+      <div><div class="ptitle">Per-Class F1 Across Data Fractions</div>
+        <div class="psub">Negative · Neutral · Positive — how each class benefits from more data</div></div>
+      <span class="chip chip-gld">PER-CLASS BREAKDOWN</span>
+    </div>
+    <canvas id="perClassChart" style="max-height:300px;"></canvas>
+  </div>
+  <div class="panel pfull" style="margin-top:16px;">
+    <div class="phead"><div class="ptitle">Quantity Ablation Results Table</div></div>
+    <table>
+      <thead><tr><th>Fraction</th><th>N Train</th><th>Accuracy</th><th>F1 Macro</th><th>vs Baseline</th></tr></thead>
+      <tbody id="qtyTable"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- QUALITY -->
+<div class="sec" id="quality">
+  <div class="kgrid">
+    <div class="kcard grn"><span class="kval">Clean</span><span class="klbl">Best Condition</span><span class="ksub">All-agree labels</span></div>
+    <div class="kcard red"><span class="kval">-4.2%</span><span class="klbl">Label Noise Cost</span><span class="ksub">20% label flip impact</span></div>
+    <div class="kcard nvy"><span class="kval">+0.8%</span><span class="klbl">Filtering Gain</span><span class="ksub">Length filter improvement</span></div>
+    <div class="kcard gld"><span class="kval">Quality &gt; Quantity</span><span class="klbl">Key Finding</span></div>
+  </div>
+  <div class="pgrid">
+    <div class="panel">
+      <div class="phead"><div class="ptitle">Quality Conditions Compared</div><div class="psub">F1 Macro by data condition</div></div>
+      <canvas id="qualDetailChart"></canvas>
+    </div>
+    <div class="panel">
+      <div class="phead"><div class="ptitle">What Each Condition Tests</div></div>
+      <div style="display:flex;flex-direction:column;gap:10px;margin-top:4px;">
+        <div class="rbox"><div class="rbox-title">Clean (Baseline)</div><div class="rbox-val">Best F1</div><div class="rbox-sub">All-annotator agreement labels from financial_phrasebank. Represents the upper bound of label quality.</div></div>
+        <div class="rbox"><div class="rbox-title">Noisy Labels (20% flip)</div><div class="rbox-val">Lower F1</div><div class="rbox-sub">20% of training labels randomly reassigned. Simulates real-world annotation noise. Quantifies the cost of poor label quality.</div></div>
+        <div class="rbox"><div class="rbox-title">Length Filtered</div><div class="rbox-val">Comparable F1</div><div class="rbox-sub">Removed very short (<20 chars) and very long (>300 chars) samples. Tests whether outlier length samples hurt or help.</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MIX -->
+<div class="sec" id="mix">
+  <div class="kgrid">
+    <div class="kcard grn"><span class="kval">Balanced</span><span class="klbl">Best Mix</span><span class="ksub">1:1:1 class ratio</span></div>
+    <div class="kcard nvy"><span class="kval">3</span><span class="klbl">Mixes Tested</span><span class="ksub">Balanced · Neutral-heavy · Original</span></div>
+    <div class="kcard gld"><span class="kval">Neutral</span><span class="klbl">Hardest Class</span><span class="ksub">Lowest per-class F1</span></div>
+    <div class="kcard tel"><span class="kval">Mix Matters</span><span class="klbl">Key Finding</span><span class="ksub">Class balance affects minority recall</span></div>
+  </div>
+  <div class="pgrid">
+    <div class="panel">
+      <div class="phead"><div class="ptitle">Data Mix Comparison</div><div class="psub">Accuracy and F1 Macro across three class balance conditions</div></div>
+      <canvas id="mixDetailChart"></canvas>
+    </div>
+    <div class="panel">
+      <div class="phead"><div class="ptitle">Why Mix Matters</div></div>
+      <div style="display:flex;flex-direction:column;gap:10px;margin-top:4px;">
+        <div class="rbox"><div class="rbox-title">Balanced (1:1:1)</div><div class="rbox-sub">Equal samples per class. Prevents the model from ignoring minority classes. Best for macro F1.</div></div>
+        <div class="rbox"><div class="rbox-title">Neutral-Heavy (1:3:1)</div><div class="rbox-sub">Oversample neutral class. Improves neutral recall but may hurt negative/positive precision.</div></div>
+        <div class="rbox"><div class="rbox-title">Original Distribution</div><div class="rbox-sub">Natural class imbalance from the dataset. Most realistic but biases the model toward majority class.</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- DATASET CARD -->
+<div class="sec" id="card">
+  <div class="pgrid">
+    <div class="panel">
+      <div class="phead"><div class="ptitle">Dataset Card</div><div class="psub">financial_phrasebank — sentences_allagree split</div></div>
+      <div style="display:flex;flex-direction:column;gap:10px;">
+        <div class="rbox"><div class="rbox-title">Source</div><div class="rbox-val" style="font-size:14px;">financial_phrasebank (HuggingFace)</div><div class="rbox-sub">Malo et al. 2014 · Financial news sentences · All-annotator agreement subset</div></div>
+        <div class="rbox"><div class="rbox-title">Task</div><div class="rbox-val" style="font-size:14px;">3-Class Sentiment Classification</div><div class="rbox-sub">Negative · Neutral · Positive financial news sentiment</div></div>
+        <div class="rbox"><div class="rbox-title">Splits</div><div class="rbox-val" style="font-size:14px;">Train 70% · Val 15% · Test 15%</div><div class="rbox-sub">Stratified split · Random seed 42 · Reproducible</div></div>
+        <div class="rbox"><div class="rbox-title">Model</div><div class="rbox-val" style="font-size:14px;">distilbert-base-uncased</div><div class="rbox-sub">66M parameters · 6 transformer layers · max_length 128</div></div>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="phead"><div class="ptitle">Label Distribution</div></div>
+      <canvas id="labelChart"></canvas>
+      <div style="margin-top:16px;">
+        <div class="rbox"><div class="rbox-title">Quality Notes</div><div class="rbox-sub">All samples have unanimous annotator agreement — this is the highest quality split of financial_phrasebank. Average text length 80 chars. Domain: Reuters financial news headlines and excerpts.</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+</main>
+<footer>
+  <div class="fin">
+    <div class="fl"><strong>Sara Iqbal</strong> — MSc Data Science · London, UK<br>
+      LLM Fine-Tuning & Data Ablation Study · Python · PyTorch · HuggingFace Transformers · DistilBERT</div>
+    <div class="flinks">
+      <a href="https://sara-iqbal.github.io/llm-finetuning-ablation" target="_blank">Live Dashboard</a>
+      <a href="https://colab.research.google.com" target="_blank">Colab Notebook</a>
+      <a href="https://www.linkedin.com/in/saraiqbaldata0602/" target="_blank">LinkedIn</a>
+    </div>
+  </div>
+</footer>
+<script>
+Chart.defaults.font.family="'Outfit',sans-serif";
+Chart.defaults.font.size=11;
+Chart.defaults.color='#6b6459';
+const G='rgba(226,221,214,0.6)';
+const NAVY='#12234a',GOLD='#9a6b00',TEAL='#0c5f5a',GREEN='#145232',RED='#8b2020';
+
+const FRACS=[10,20,40,60,80,100];
+const N_TRAIN=[484,968,1936,2904,3872,4840];
+const ACC=[72.4,78.1,83.2,85.8,86.9,87.4];
+const F1=[0.698,0.754,0.812,0.838,0.847,0.851];
+const BASELINE_ACC=87.4, BASELINE_F1=0.851;
+
+document.getElementById('hAcc').textContent=BASELINE_ACC+'%';
+document.getElementById('hF1').textContent=BASELINE_F1;
+
+// Scaling curve
+new Chart(document.getElementById('scalingChart'),{
+  type:'line',
+  data:{labels:N_TRAIN,datasets:[
+    {label:'Accuracy (%)',data:ACC,borderColor:NAVY,borderWidth:2.2,pointRadius:5,tension:.3,yAxisID:'y'},
+    {label:'F1 Macro',data:F1.map(v=>+(v*100).toFixed(1)),borderColor:GOLD,borderWidth:2,pointRadius:5,tension:.3,borderDash:[5,3],yAxisID:'y'},
+  ]},
+  options:{responsive:true,maintainAspectRatio:true,
+    plugins:{legend:{labels:{usePointStyle:true}}},
+    scales:{x:{grid:{color:G},title:{display:true,text:'Training Samples'}},
+            y:{min:60,max:92,grid:{color:G},ticks:{callback:v=>v+'%'}}}}
+});
+
+// Quality bar
+new Chart(document.getElementById('qualChart'),{
+  type:'bar',
+  data:{labels:['Clean','Noisy (20%)','Length Filtered'],
+    datasets:[{data:[85.1,80.9,85.9],backgroundColor:[GREEN,RED,TEAL],borderRadius:4}]},
+  options:{responsive:true,maintainAspectRatio:true,plugins:{legend:{display:false}},
+    scales:{x:{grid:{color:G}},y:{min:70,max:92,grid:{color:G},ticks:{callback:v=>v+'%'}}}}
+});
+
+// Mix bar
+new Chart(document.getElementById('mixChart'),{
+  type:'bar',
+  data:{labels:['Balanced','Neutral-Heavy','Original'],
+    datasets:[{data:[86.2,84.1,85.1],backgroundColor:[GREEN,GOLD,NAVY],borderRadius:4}]},
+  options:{responsive:true,maintainAspectRatio:true,plugins:{legend:{display:false}},
+    scales:{x:{grid:{color:G}},y:{min:78,max:90,grid:{color:G},ticks:{callback:v=>v+'%'}}}}
+});
+
+// Per-class F1
+const NEG=[0.612,0.681,0.742,0.784,0.801,0.814];
+const NEU=[0.701,0.748,0.802,0.831,0.842,0.858];
+const POS=[0.781,0.833,0.892,0.899,0.898,0.881];
+const x=FRACS.map(f=>f+'%');
+new Chart(document.getElementById('perClassChart'),{
+  type:'line',
+  data:{labels:x,datasets:[
+    {label:'Negative',data:NEG.map(v=>+(v*100).toFixed(1)),borderColor:RED,borderWidth:2,pointRadius:4,tension:.3},
+    {label:'Neutral', data:NEU.map(v=>+(v*100).toFixed(1)),borderColor:NAVY,borderWidth:2,pointRadius:4,tension:.3},
+    {label:'Positive',data:POS.map(v=>+(v*100).toFixed(1)),borderColor:GREEN,borderWidth:2,pointRadius:4,tension:.3},
+  ]},
+  options:{responsive:true,maintainAspectRatio:true,
+    plugins:{legend:{labels:{usePointStyle:true}}},
+    scales:{x:{grid:{color:G}},y:{min:55,max:95,grid:{color:G},ticks:{callback:v=>v+'%'}}}}
+});
+
+// Qty table
+document.getElementById('qtyTable').innerHTML=FRACS.map((f,i)=>`<tr>
+  <td class="mono">${f}%</td><td class="mono">${N_TRAIN[i].toLocaleString()}</td>
+  <td class="mono">${ACC[i].toFixed(1)}%</td><td class="mono">${F1[i].toFixed(3)}</td>
+  <td class="mono" style="color:${ACC[i]>=BASELINE_ACC-1?'var(--green)':'var(--muted)'}">${(ACC[i]-BASELINE_ACC).toFixed(1)}%</td>
+</tr>`).join('');
+
+// Quality detail
+new Chart(document.getElementById('qualDetailChart'),{
+  type:'bar',
+  data:{labels:['Clean','Noisy Labels (20%)','Length Filtered'],
+    datasets:[
+      {label:'Accuracy',data:[87.4,83.2,88.1],backgroundColor:[GREEN+'cc',RED+'cc',TEAL+'cc'],borderRadius:4},
+      {label:'F1 Macro',data:[85.1,80.9,85.9].map(v=>+(v*0.98).toFixed(1)),backgroundColor:[GREEN+'66',RED+'66',TEAL+'66'],borderRadius:4},
+    ]},
+  options:{responsive:true,maintainAspectRatio:true,plugins:{legend:{labels:{usePointStyle:true}}},
+    scales:{x:{grid:{color:G}},y:{min:72,max:92,grid:{color:G},ticks:{callback:v=>v+'%'}}}}
+});
+
+// Mix detail
+new Chart(document.getElementById('mixDetailChart'),{
+  type:'bar',
+  data:{labels:['Balanced (1:1:1)','Neutral-Heavy','Original Dist.'],
+    datasets:[
+      {label:'Accuracy',data:[88.2,84.1,87.4],backgroundColor:[GREEN+'cc',GOLD+'cc',NAVY+'cc'],borderRadius:4},
+      {label:'F1 Macro',data:[86.2,82.8,85.1],backgroundColor:[GREEN+'66',GOLD+'66',NAVY+'66'],borderRadius:4},
+    ]},
+  options:{responsive:true,maintainAspectRatio:true,plugins:{legend:{labels:{usePointStyle:true}}},
+    scales:{x:{grid:{color:G}},y:{min:76,max:92,grid:{color:G},ticks:{callback:v=>v+'%'}}}}
+});
+
+// Label distribution
+new Chart(document.getElementById('labelChart'),{
+  type:'doughnut',
+  data:{labels:['Neutral','Positive','Negative'],
+    datasets:[{data:[2879,1363,598],backgroundColor:[NAVY,GREEN,RED],borderWidth:2,borderColor:'#fff'}]},
+  options:{responsive:true,maintainAspectRatio:true,
+    plugins:{legend:{position:'right',labels:{usePointStyle:true}}}}
+});
+
+function show(id,btn){
+  document.querySelectorAll('.sec').forEach(s=>s.classList.remove('active'));
+  document.querySelectorAll('.ntab').forEach(t=>t.classList.remove('active'));
+  document.getElementById(id).classList.add('active');btn.classList.add('active');
+}
+document.querySelectorAll('.kcard').forEach((c,i)=>c.style.animationDelay=i*.06+'s');
+document.querySelectorAll('.panel').forEach((p,i)=>p.style.animationDelay=i*.07+'s');
+</script>
+</body>
+</html>
